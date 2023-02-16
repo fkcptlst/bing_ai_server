@@ -4,3 +4,4 @@ loguru
 uvicorn
 EdgeGPT
 pyyaml
+retry

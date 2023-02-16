@@ -1,12 +1,13 @@
 import os
-
 import uvicorn
 import yaml
+import asyncio
 from EdgeGPT import Chatbot
 from fastapi import FastAPI
 from loguru import logger
 from pydantic import BaseModel
 
+semaphore = asyncio.Semaphore(1)  # concurrency limit is 1
 
 class ReqBody(BaseModel):
     chatText: str = ''
@@ -33,25 +34,31 @@ def read_root():
 
 
 @app.post('/{command}')
+# @retry.retry(tries=3, delay=3)
 async def universalHandler(command=None, body: ReqBody = None):
     global bot
-    if command is None:
-        command = ['chat', 'forgetme']
-    # msg = newMsg(body, command)
-    prompt: str = body.chatText
-    finalMsg: str
+    global semaphore
+    async with semaphore:
+        if command is None:
+            command = ['chat', 'forgetme']
+        # msg = newMsg(body, command)
+        prompt: str = body.chatText
+        finalMsg: str
 
-    logger.info(f"prompt: {prompt}")
-    if command == 'chat':
-        resp = await bot.ask(prompt=prompt)
-        finalMsg = resp["item"]["messages"][1]["adaptiveCards"][0]["body"][0]["text"]
-    elif command == 'forgetme':
-        await bot.reset()
-        finalMsg = "已重置对话"
-    else:
-        finalMsg = "未知命令"
-    logger.info(f"finalMsg: {finalMsg}")
-    return {'success': True, 'response': finalMsg}
+        logger.info(f"prompt: {prompt}")
+        if command == 'chat':
+            resp = await bot.ask(prompt=prompt)
+            try:
+                finalMsg = resp["item"]["messages"][1]["adaptiveCards"][0]["body"][0]["text"]
+            except KeyError:
+                finalMsg = "慢一点"  # Too fast
+        elif command == 'forgetme':
+            await bot.reset()
+            finalMsg = "已重置对话"  # Reset conversation
+        else:
+            finalMsg = "未知命令"  # Unknown command
+        logger.info(f"finalMsg: {finalMsg}")
+        return {'success': True, 'response': finalMsg}
 
 
 ### Run HTTP Server when executed by Python CLI
