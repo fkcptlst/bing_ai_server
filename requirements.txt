@@ -1,0 +1,6 @@
+fastapi
+pydantic
+loguru
+uvicorn
+EdgeGPT
+pyyaml

@@ -1,0 +1,5 @@
+uvicorn_host: "0.0.0.0"     # String：API服务监听IP地址。
+uvicorn_port: 2334     # Integer：API服务监听端口。
+uvicorn_reload: false     # Bool：是否在项目代码改变时重载API服务。有利于调试，不建议在生产环境下使用。
+uvicorn_loglevel: "debug"     # String：日志等级。可用选项有：critical, error, warning, info, debug, trace。
+uvicorn_workers: 1     # Integer：API服务worker数。
