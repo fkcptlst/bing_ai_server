@@ -67,16 +67,26 @@ async def universalHandler(command=None, body: ReqBody = None):
                 # resp_text: str = resp["item"]["messages"][-1]["spokenText"]
                 # get spokenText or text
                 resp_text: str = resp["item"]["messages"][-1].get("text", None)
-                if resp_text is None:
-                    resp_text: str = resp["item"]["messages"][-1]["spokenText"]
-                resp_choices: set[str] = [c["text"] for c in resp["item"]["messages"][-1]["suggestedResponses"]]
+                author: str = resp["item"]["messages"][-1].get("author", None)
+                # if resp_text is None:
+                #     resp_text: str = resp["item"]["messages"][-1]["spokenText"]
+                try:
+                    resp_choices: set[str] = [c["text"] for c in resp["item"]["messages"][-1]["suggestedResponses"]]
+                    logger.debug(f"resp_choices: {resp_choices}")
+                except KeyError:
+                    resp_choices = None
+                    pass
                 logger.debug(f"resp_text: {resp_text}")
-                logger.debug(f"resp_choices: {resp_choices}")
-                finalMsg = resp_text + "\n\n推荐回复：\n"
-                for i, choice in enumerate(resp_choices):
-                    finalMsg += f"{i + 1}. {choice}\n"
-            except KeyError:
-                logger.error(f"KeyError: resp:{resp}")
+                if author == 'user':
+                    finalMsg = "Bing 拒绝回答了。"
+                elif resp_choices is None:
+                    finalMsg = resp_text
+                else:
+                    finalMsg = resp_text + "\n\n推荐回复：\n"
+                    for i, choice in enumerate(resp_choices):
+                        finalMsg += f"{i + 1}. {choice}\n"
+            except KeyError as e:
+                logger.error(f"KeyError: {e}; resp:{resp}")
                 finalMsg = "KeyError"  # Too fast
         elif command == 'forgetme':
             await bot.reset()
