@@ -1,8 +1,9 @@
+import asyncio
 import os
+import time
+
 import uvicorn
 import yaml
-import time
-import asyncio
 from EdgeGPT import Chatbot
 from fastapi import FastAPI
 from loguru import logger
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from websockets.exceptions import ConnectionClosedError
 
 semaphore = asyncio.Semaphore(1)  # concurrency limit is 1
+
 
 class ReqBody(BaseModel):
     chatText: str = ''
@@ -61,14 +63,20 @@ async def universalHandler(command=None, body: ReqBody = None):
                 resp = await bot.ask(prompt=prompt)
             try:
                 # finalMsg = resp["item"]["messages"][1]["adaptiveCards"][0]["body"][0]["text"]
-                resp_text: str = resp["item"]["messages"][-1]["text"]
+                # resp_text: str = resp["item"]["messages"][-1]["text"]
+                # resp_text: str = resp["item"]["messages"][-1]["spokenText"]
+                # get spokenText or text
+                resp_text: str = resp["item"]["messages"][-1].get("text", None)
+                if resp_text is None:
+                    resp_text: str = resp["item"]["messages"][-1]["spokenText"]
                 resp_choices: set[str] = [c["text"] for c in resp["item"]["messages"][-1]["suggestedResponses"]]
                 logger.debug(f"resp_text: {resp_text}")
                 logger.debug(f"resp_choices: {resp_choices}")
                 finalMsg = resp_text + "\n\n推荐回复：\n"
                 for i, choice in enumerate(resp_choices):
-                    finalMsg += f"{i+1}. {choice}\n"
+                    finalMsg += f"{i + 1}. {choice}\n"
             except KeyError:
+                logger.error(f"KeyError: resp:{resp}")
                 finalMsg = "KeyError"  # Too fast
         elif command == 'forgetme':
             await bot.reset()
