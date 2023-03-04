@@ -18,7 +18,7 @@ class ReqBody(BaseModel):
     groupId: int = -1
     timestamp: int = -1
     signature: str = ''
-    returnVoice: bool = True
+    returnVoice: bool = False
 
 
 with open("config.yaml", "r", encoding="utf-8") as f:
