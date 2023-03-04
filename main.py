@@ -4,13 +4,11 @@ import time
 
 import uvicorn
 import yaml
-from EdgeGPT import Chatbot
+from EdgeGPT import Chatbot, ConversationStyle
 from fastapi import FastAPI
 from loguru import logger
 from pydantic import BaseModel
 from websockets.exceptions import ConnectionClosedError
-
-semaphore = asyncio.Semaphore(1)  # concurrency limit is 1
 
 
 class ReqBody(BaseModel):
@@ -26,9 +24,11 @@ class ReqBody(BaseModel):
 with open("config.yaml", "r", encoding="utf-8") as f:
     apicfg = yaml.safe_load(f)
 
+semaphore = asyncio.Semaphore(1)  # concurrency limit is 1
 app = FastAPI()
 os.environ["COOKIE_FILE"] = "./cookies.json"
 bot = Chatbot()
+conv_style = None
 
 
 # HelloWorld
@@ -42,6 +42,7 @@ def read_root():
 async def universalHandler(command=None, body: ReqBody = None):
     global bot
     global semaphore
+    global conv_style
     async with semaphore:
         if command is None:
             command = ['chat', 'forgetme']
@@ -52,15 +53,15 @@ async def universalHandler(command=None, body: ReqBody = None):
         logger.info(f"prompt: {prompt}")
         if command == 'chat':
             try:
-                resp = await bot.ask(prompt=prompt)
+                resp = await bot.ask(prompt=prompt, conversation_style=conv_style)
             except ConnectionResetError:
                 logger.warning("ConnectionResetError, retrying...")
                 time.sleep(2)
-                resp = await bot.ask(prompt=prompt)
+                resp = await bot.ask(prompt=prompt, conversation_style=conv_style)
             except ConnectionClosedError:
                 logger.warning("ConnectionClosedError, retrying...")
                 time.sleep(2)
-                resp = await bot.ask(prompt=prompt)
+                resp = await bot.ask(prompt=prompt, conversation_style=conv_style)
             try:
                 # finalMsg = resp["item"]["messages"][1]["adaptiveCards"][0]["body"][0]["text"]
                 # resp_text: str = resp["item"]["messages"][-1]["text"]
@@ -89,12 +90,28 @@ async def universalHandler(command=None, body: ReqBody = None):
                 logger.error(f"KeyError: {e}; resp:{resp}")
                 finalMsg = "KeyError"  # Too fast
         elif command == 'forgetme':
-            await bot.reset()
+            try:
+                await bot.reset()
+            except Exception as e:
+                logger.error(f"Exception: {e}")
+                # restart bot
+                bot = Chatbot()
             finalMsg = "已重置对话"  # Reset conversation
         else:
             finalMsg = "未知命令"  # Unknown command
         logger.info(f"finalMsg: {finalMsg}")
         return {'success': True, 'response': finalMsg}
+
+
+@app.get('/style/{style}')
+async def styleHandler(style: str = None):
+    global conv_style
+    # style should be creative,balanced,precise
+    if style in ['creative', 'balanced', 'precise']:
+        conv_style = ConversationStyle[style]
+        return {'success': True, 'response': f"已设置对话风格为:{style}"}
+    else:
+        return {'success': False, 'response': f"未知风格:{style}"}
 
 
 ### Run HTTP Server when executed by Python CLI
