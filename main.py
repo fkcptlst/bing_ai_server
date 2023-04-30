@@ -38,7 +38,6 @@ def read_root():
 
 
 @app.post('/{command}')
-# @retry.retry(tries=3, delay=3)
 async def universalHandler(command=None, body: ReqBody = None):
     global bot
     global semaphore
@@ -63,20 +62,14 @@ async def universalHandler(command=None, body: ReqBody = None):
                 time.sleep(2)
                 resp = await bot.ask(prompt=prompt, conversation_style=conv_style)
             try:
-                # finalMsg = resp["item"]["messages"][1]["adaptiveCards"][0]["body"][0]["text"]
-                # resp_text: str = resp["item"]["messages"][-1]["text"]
-                # resp_text: str = resp["item"]["messages"][-1]["spokenText"]
                 # get spokenText or text
                 resp_text: str = resp["item"]["messages"][-1].get("text", None)
                 author: str = resp["item"]["messages"][-1].get("author", None)
-                # if resp_text is None:
-                #     resp_text: str = resp["item"]["messages"][-1]["spokenText"]
                 try:
                     resp_choices: set[str] = [c["text"] for c in resp["item"]["messages"][-1]["suggestedResponses"]]
                     logger.debug(f"resp_choices: {resp_choices}")
                 except KeyError:
                     resp_choices = None
-                    pass
                 logger.debug(f"resp_text: {resp_text}")
                 if author == 'user':
                     finalMsg = "Bing 拒绝回答了。"
@@ -87,8 +80,14 @@ async def universalHandler(command=None, body: ReqBody = None):
                     for i, choice in enumerate(resp_choices):
                         finalMsg += f"{i + 1}. {choice}\n"
             except KeyError as e:
-                logger.error(f"KeyError: {e}; resp:{resp}")
-                finalMsg = "KeyError"  # Too fast
+                logger.error(f"KeyError: {e}; resp:{resp}, attempting to restart...")
+                try:
+                    await bot.reset()
+                except Exception as e:
+                    logger.error(f"Exception: {e}")
+                    # restart bot
+                    bot = Chatbot()
+                finalMsg = "已自动重置对话，如有需要请重新发送消息。"  # Reset conversation
         elif command == 'forgetme':
             try:
                 await bot.reset()
@@ -106,12 +105,10 @@ async def universalHandler(command=None, body: ReqBody = None):
 @app.get('/style/{style}')
 async def styleHandler(style: str = None):
     global conv_style
-    # style should be creative,balanced,precise
-    if style in ['creative', 'balanced', 'precise']:
-        conv_style = ConversationStyle[style]
-        return {'success': True, 'response': f"已设置对话风格为:{style}"}
-    else:
+    if style not in {'creative', 'balanced', 'precise'}:
         return {'success': False, 'response': f"未知风格:{style}"}
+    conv_style = ConversationStyle[style]
+    return {'success': True, 'response': f"已设置对话风格为:{style}"}
 
 
 ### Run HTTP Server when executed by Python CLI
